@@ -1,0 +1,73 @@
+version: '3.7'
+
+services:
+    dbt_image:
+      image: ghcr.io/dbt-labs/dbt-snowflake:1.2.0
+      env_file:
+        - ../.dbt.env
+      environment:
+        SNOWFLAKE_LOAD_DATABASE: "RAW"
+        SNOWFLAKE_TRANSFORM_WAREHOUSE: "TRANSFORM_XS"
+        SNOWFLAKE_TRANSFORM_DATABASE: "ANALYTICS"
+        PROJECT_NAME: "snowflake-dbt"
+      restart: always
+      command: bash -c "/bin/bash"
+      entrypoint: [ "" ]
+      volumes:
+        - type: bind
+          source: dbt.bashrc
+          target: /root/.bashrc
+        - type: bind
+          source: ../transform/snowflake-dbt/
+          target: /usr/app
+        - type: bind
+          source: ${DBT_PROFILE_PATH:-../transform/snowflake-dbt/profile}
+          target: /root/.dbt/
+          read_only: True
+
+    mattermost_analytics:
+      image: ghcr.io/dbt-labs/dbt-snowflake:1.6.5
+      env_file:
+        - ../.dbt.env
+      environment:
+        SNOWFLAKE_LOAD_DATABASE: "RAW"
+        SNOWFLAKE_TRANSFORM_WAREHOUSE: "TRANSFORM_XS"
+        SNOWFLAKE_TRANSFORM_DATABASE: "ANALYTICS"
+        PROJECT_NAME: "mattermost-analytics"
+      restart: always
+      command: bash -c "/bin/bash"
+      entrypoint: [ "" ]
+      volumes:
+        - type: bind
+          source: dbt.bashrc
+          target: /root/.bashrc
+        - type: bind
+          source: ../transform/mattermost-analytics/
+          target: /usr/app
+        - type: bind
+          source: ${DBT_PROFILE_PATH:-../transform/mattermost-analytics/profile}
+          target: /root/.dbt/
+          read_only: True
+
+    data_image:
+      build:
+        dockerfile: build/Dockerfile
+        context: ../
+      env_file:
+        - ../.dbt.env
+      restart: always
+      entrypoint: [ "" ]
+      command: bash -c "/bin/bash"
+
+    permifrost:
+      build:
+        dockerfile: build/permifrost.Dockerfile
+        context: ../
+      env_file:
+        - ../.dbt.env
+      restart: always
+      command: /bin/bash -c "/bin/bash"
+      volumes:
+        - type: bind
+          source: ../load
+          target: /app/load

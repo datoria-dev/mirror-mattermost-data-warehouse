@@ -1,0 +1,116 @@
+version: '2'
+
+services:
+  postgresql:
+    image: 'bitnami/postgresql:16.1.0-debian-11-r2'
+    environment:
+      - POSTGRESQL_DATABASE=bitnami_airflow
+      - POSTGRESQL_USERNAME=bn_airflow
+      - POSTGRESQL_PASSWORD=bitnami1
+    volumes:
+      - 'postgresql_data:/bitnami/postgresql'
+
+  redis:
+    image: 'bitnami/redis:7.2.4-debian-11-r5'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    volumes:
+      - 'redis_data:/bitnami'
+
+  airflow-worker:
+    image: bitnami/airflow-worker:2.8.1-debian-11-r4
+    environment:
+      - AIRFLOW_FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - AIRFLOW_SECRET_KEY=a25mQ1FHTUh3MnFRSk5KMEIyVVU2YmN0VGRyYTVXY08=
+      - AIRFLOW_EXECUTOR=CeleryExecutor
+      - AIRFLOW_DATABASE_NAME=bitnami_airflow
+      - AIRFLOW_DATABASE_USERNAME=bn_airflow
+      - AIRFLOW_DATABASE_PASSWORD=bitnami1
+      - AIRFLOW_WEBSERVER_HOST=airflow
+      - AIRFLOW_LOAD_EXAMPLES=no
+    volumes:
+      - ../airflow/dags:/opt/bitnami/airflow/dags
+      - ../airflow/plugins:/opt/bitnami/airflow/plugins
+      - .:/opt/kube
+
+  airflow-scheduler:
+    image: docker.io/bitnami/airflow-scheduler:2.8.1-debian-11-r4
+    environment:
+      - AIRFLOW_FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - AIRFLOW_SECRET_KEY=a25mQ1FHTUh3MnFRSk5KMEIyVVU2YmN0VGRyYTVXY08=
+      - AIRFLOW_EXECUTOR=CeleryExecutor
+      - AIRFLOW_DATABASE_NAME=bitnami_airflow
+      - AIRFLOW_DATABASE_USERNAME=bn_airflow
+      - AIRFLOW_DATABASE_PASSWORD=bitnami1
+      - AIRFLOW_WEBSERVER_HOST=airflow
+      - AIRFLOW_LOAD_EXAMPLES=no
+    volumes:
+      - ../airflow/dags:/opt/bitnami/airflow/dags
+      - ../airflow/plugins:/opt/bitnami/airflow/plugins
+      - .:/opt/kube
+
+
+  airflow:
+    image: bitnami/airflow:2.8.1-debian-11-r4
+    environment:
+      - AIRFLOW_FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - AIRFLOW_SECRET_KEY=a25mQ1FHTUh3MnFRSk5KMEIyVVU2YmN0VGRyYTVXY08=
+      - AIRFLOW_EXECUTOR=CeleryExecutor
+      - AIRFLOW_DATABASE_NAME=bitnami_airflow
+      - AIRFLOW_DATABASE_USERNAME=bn_airflow
+      - AIRFLOW_DATABASE_PASSWORD=bitnami1
+      - AIRFLOW_LOAD_EXAMPLES=no
+      - AIRFLOW_PASSWORD=bitnami123
+      - AIRFLOW_USERNAME=user
+      - AIRFLOW_EMAIL=user@example.com
+    ports:
+      - '8080:8080'
+    volumes:
+      - ../airflow/dags:/opt/bitnami/airflow/dags
+      - ../airflow/plugins:/opt/bitnami/airflow/plugins
+      - .:/opt/kube
+
+
+  # Local kubernetes cluster
+  k3s-server:
+    image: "rancher/k3s:${K3S_VERSION:-latest}"
+    command:
+    - server
+    tmpfs:
+    - /run
+    - /var/run
+    privileged: true
+    environment:
+    - K3S_TOKEN=secret
+    - K3S_KUBECONFIG_OUTPUT=/output/kubeconfig.yaml
+    - K3S_KUBECONFIG_MODE=666
+    volumes:
+    - .:/output
+    ports:
+    - 6443:6443
+
+  k3s-agent:
+    image: "rancher/k3s:${K3S_VERSION:-latest}"
+    command:
+    - agent
+    tmpfs:
+    - /run
+    - /var/run
+    privileged: true
+    environment:
+    - K3S_URL=https://k3s-server:6443
+    - K3S_TOKEN=secret
+
+  k3s-airflow-config:
+    image: python:3.8.15-slim
+    depends_on:
+      - k3s-agent
+      - k3s-server
+    command: bash -c "pip install pyyaml && cd /output && python airflow-kubeconfig.py"
+    volumes:
+      - .:/output
+volumes:
+  postgresql_data:
+    driver: local
+  redis_data:
+    driver: local
